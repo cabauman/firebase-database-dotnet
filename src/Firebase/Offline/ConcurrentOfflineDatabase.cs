@@ -2,6 +2,7 @@
 {
     using System;
     using System.Collections;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
@@ -11,18 +12,17 @@
     /// <summary>
     /// The offline database.
     /// </summary>
-    public class OfflineDatabase : IDictionary<string, OfflineEntry>
+    public class ConcurrentOfflineDatabase : IDictionary<string, OfflineEntry>
     {
         private readonly LiteRepository db;
-        private readonly IDictionary<string, OfflineEntry> cache;
-        private readonly string filePath;
+        private readonly ConcurrentDictionary<string, OfflineEntry> ccache;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="OfflineDatabase"/> class.
         /// </summary>
         /// <param name="itemType"> The item type which is used to determine the database file name.  </param>
         /// <param name="filenameModifier"> Custom string which will get appended to the file name. </param>
-        public OfflineDatabase(Type itemType, string filenameModifier)
+        public ConcurrentOfflineDatabase(Type itemType, string filenameModifier)
         {
             var fullName = this.GetFileName(itemType.ToString());
             if(fullName.Length > 100)
@@ -35,35 +35,40 @@
 
             string root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             string filename = fullName + filenameModifier + ".db";
-            filePath = Path.Combine(root, filename);
-            this.db = new LiteRepository(new LiteDatabase(filePath, mapper));
+            var path = Path.Combine(root, filename);
+            this.db = new LiteRepository(new LiteDatabase(path, mapper));
 
-            this.cache = db.Database.GetCollection<OfflineEntry>().FindAll()
+            var cache = db.Database
+                .GetCollection<OfflineEntry>()
+                .FindAll()
                 .ToDictionary(o => o.Key, o => o);
+
+            this.ccache = new ConcurrentDictionary<string, OfflineEntry>(cache);
+            
         }
 
         /// <summary>
         /// Gets the number of elements contained in the <see cref="T:System.Collections.Generic.ICollection`1"/>.
         /// </summary>
         /// <returns> The number of elements contained in the <see cref="T:System.Collections.Generic.ICollection`1"/>. </returns>
-        public int Count => this.cache.Count;
+        public int Count => this.ccache.Count;
 
         /// <summary>
         /// Gets a value indicating whether this is a read-only collection.
         /// </summary>
-        public bool IsReadOnly => this.cache.IsReadOnly;
+        public bool IsReadOnly => false;
 
         /// <summary>
         /// Gets an <see cref="T:System.Collections.Generic.ICollection`1"/> containing the keys of the <see cref="T:System.Collections.Generic.IDictionary`2"/>.
         /// </summary>
         /// <returns> An <see cref="T:System.Collections.Generic.ICollection`1"/> containing the keys of the object that implements <see cref="T:System.Collections.Generic.IDictionary`2"/>. </returns>
-        public ICollection<string> Keys => this.cache.Keys;
+        public ICollection<string> Keys => this.ccache.Keys;
 
         /// <summary>
         /// Gets an <see cref="T:System.Collections.Generic.ICollection`1"/> containing the values in the <see cref="T:System.Collections.Generic.IDictionary`2"/>.
         /// </summary>
         /// <returns> An <see cref="T:System.Collections.Generic.ICollection`1"/> containing the values in the object that implements <see cref="T:System.Collections.Generic.IDictionary`2"/>. </returns>
-        public ICollection<OfflineEntry> Values => this.cache.Values;
+        public ICollection<OfflineEntry> Values => this.ccache.Values;
 
         /// <summary>
         /// Gets or sets the element with the specified key.
@@ -74,12 +79,12 @@
         {
             get
             {
-                return this.cache[key];
+                return this.ccache[key];
             }
 
             set
             {
-                this.cache[key] = value;
+                this.ccache.AddOrUpdate(key, value, (k, existing) => value);
                 this.db.Upsert(value);
             }
         }
@@ -90,7 +95,7 @@
         /// <returns> An enumerator that can be used to iterate through the collection. </returns>
         public IEnumerator<KeyValuePair<string, OfflineEntry>> GetEnumerator()
         {
-            return this.cache.GetEnumerator();
+            return this.ccache.GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator()
@@ -112,7 +117,7 @@
         /// </summary> 
         public void Clear()
         {
-            this.cache.Clear();
+            this.ccache.Clear();
             this.db.Delete<OfflineEntry>(Query.All());
         }
 
@@ -133,7 +138,7 @@
         /// <param name="arrayIndex">The zero-based index in <paramref name="array"/> at which copying begins.</param>
         public void CopyTo(KeyValuePair<string, OfflineEntry>[] array, int arrayIndex)
         {
-            this.cache.CopyTo(array, arrayIndex);
+            this.ccache.ToList().CopyTo(array, arrayIndex);
         }
 
         /// <summary>
@@ -153,7 +158,7 @@
         /// <returns> True if the <see cref="T:System.Collections.Generic.IDictionary`2"/> contains an element with the key; otherwise, false. </returns>
         public bool ContainsKey(string key)
         {
-            return this.cache.ContainsKey(key);
+            return this.ccache.ContainsKey(key);
         }
 
         /// <summary>
@@ -163,8 +168,8 @@
         /// <param name="value">The object to use as the value of the element to add.</param>
         public void Add(string key, OfflineEntry value)
         {
-            this.cache.Add(key, value);
-            this.db.Insert(value);
+            this.ccache.AddOrUpdate(key, value, (k, existing) => value);
+            this.db.Upsert(value);
         }
 
         /// <summary>
@@ -174,7 +179,7 @@
         /// <returns> True if the element is successfully removed; otherwise, false.  This method also returns false if <paramref name="key"/> was not found in the original <see cref="T:System.Collections.Generic.IDictionary`2"/>. </returns>
         public bool Remove(string key)
         {
-            this.cache.Remove(key);
+            this.ccache.TryRemove(key, out OfflineEntry _);
             return this.db.Delete<OfflineEntry>(key);
         }
 
@@ -185,29 +190,7 @@
         /// <returns> True if the object that implements <see cref="T:System.Collections.Generic.IDictionary`2"/> contains an element with the specified key; otherwise, false. </returns>
         public bool TryGetValue(string key, out OfflineEntry value)
         {
-            return this.cache.TryGetValue(key, out value);
-        }
-
-        public void ReleaseFile()
-        {
-            db.Engine.Dispose();
-            db.Database.Dispose();
-            db.Dispose();
-        }
-
-        public void DeleteFile()
-        {
-            try
-            {
-                if(File.Exists(filePath))
-                {
-                    File.Delete(filePath);
-                }
-            }
-            catch(Exception ex)
-            {
-                Console.WriteLine(ex);
-            }
+            return this.ccache.TryGetValue(key, out value);
         }
 
         private string GetFileName(string fileName)

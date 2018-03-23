@@ -8,7 +8,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Reflection;
 
-namespace WorldDomination.Net.Http
+// Source: https://github.com/PureKrome/HttpClient.Helpers
+namespace Firebase.Database.Tests.Utils
 {
     public class FakeHttpMessageHandler : HttpClientHandler
     {

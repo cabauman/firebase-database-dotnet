@@ -4,7 +4,8 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 
-namespace WorldDomination.Net.Http
+// Source: https://github.com/PureKrome/HttpClient.Helpers
+namespace Firebase.Database.Tests.Utils
 {
     public class HttpMessageOptions
     {

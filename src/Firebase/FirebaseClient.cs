@@ -26,12 +26,12 @@ namespace Firebase.Database
         /// </summary>
         /// <param name="baseUrl"> The base url. </param>
         /// <param name="offlineDatabaseFactory"> Offline database. </param>  
-        public FirebaseClient(string baseUrl, FirebaseOptions options = null, HttpMessageHandler httpMessageHandler = null)
+        public FirebaseClient(string baseUrl, FirebaseOptions options = null)
         {
             this.Options = options ?? new FirebaseOptions();
-            this.HttpClient = httpMessageHandler == null
+            this.HttpClient = Options.HttpMessageHandler == null
                 ? new HttpClient()
-                : new HttpClient(httpMessageHandler);
+                : new HttpClient(this.Options.HttpMessageHandler);
 
             this.baseUrl = baseUrl;
 
@@ -40,7 +40,7 @@ namespace Firebase.Database
                 this.baseUrl += "/";
             }
         }
-
+        
         /// <summary>
         /// Queries for a child of the data root.
         /// </summary>

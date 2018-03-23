@@ -3,6 +3,7 @@
     using System;
     using System.Collections.Generic;
     using System.IO;
+    using System.Net.Http;
     using System.Threading.Tasks;
 
     using Firebase.Database.Offline;
@@ -17,6 +18,7 @@
             this.SubscriptionStreamReaderFactory = s => new StreamReader(s);
             this.JsonSerializerSettings = new JsonSerializerSettings();
             this.SyncPeriod = TimeSpan.FromSeconds(10);
+            this.HttpMessageHandler = null;
         }
 
         /// <summary>
@@ -68,6 +70,15 @@
         /// Specify if token returned by factory will be used as "auth" url parameter or "access_token". 
         /// </summary>
         public bool AsAccessToken
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
+        /// Gets or sets the http message handler. Makes it possible to unit test network calls.
+        /// </summary>
+        public HttpMessageHandler HttpMessageHandler
         {
             get;
             set;

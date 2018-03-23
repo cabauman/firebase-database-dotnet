@@ -15,6 +15,7 @@
     {
         private readonly LiteRepository db;
         private readonly IDictionary<string, OfflineEntry> cache;
+        private readonly string filePath;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="OfflineDatabase"/> class.
@@ -34,8 +35,8 @@
 
             string root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             string filename = fullName + filenameModifier + ".db";
-            var path = Path.Combine(root, filename);
-            this.db = new LiteRepository(new LiteDatabase(path, mapper));
+            filePath = Path.Combine(root, filename);
+            this.db = new LiteRepository(new LiteDatabase(filePath, mapper));
 
             this.cache = db.Database.GetCollection<OfflineEntry>().FindAll()
                 .ToDictionary(o => o.Key, o => o);
@@ -185,6 +186,28 @@
         public bool TryGetValue(string key, out OfflineEntry value)
         {
             return this.cache.TryGetValue(key, out value);
+        }
+
+        public void ReleaseFile()
+        {
+            db.Engine.Dispose();
+            db.Database.Dispose();
+            db.Dispose();
+        }
+
+        public void DeleteFile()
+        {
+            try
+            {
+                if(File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine(ex);
+            }
         }
 
         private string GetFileName(string fileName)

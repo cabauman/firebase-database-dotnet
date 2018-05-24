@@ -113,7 +113,7 @@
                 }
             }
 
-            var setObject = this.firebaseCache.PushData(this.elementRoot + "/" + fullKey.Item1, serializedObject).First();
+            var setObject = this.firebaseCache.PushData("/" + fullKey.Item1, serializedObject).First();
 
             if (!this.Database.ContainsKey(key) || this.Database[key].SyncOptions != SyncOptions.Patch && this.Database[key].SyncOptions != SyncOptions.Put)
             {
@@ -358,7 +358,7 @@
 
             foreach (var group in taskGroups)
             {
-                var tasks = group.Select(pair => this.ResetAfterPull(this.childQuery.Child(pair.Key).OnceSingleAsync<T>(), pair.Key, pair.Value));
+                var tasks = group.Select(pair => this.ResetAfterPull(this.childQuery.Child(pair.Key == this.elementRoot ? string.Empty : pair.Key).OnceSingleAsync<T>(), pair.Key, pair.Value));
 
                 try
                 { 

@@ -92,7 +92,6 @@
     <Compile Include="Entities\Dimensions.cs" />
     <Compile Include="Entities\JurassicWorld.cs" />
     <Compile Include="FirebaseHttpClientTests.cs" />
-    <Compile Include="ScratchTests.cs" />
     <Compile Include="Utils\FakeMessageHandler.cs" />
     <Compile Include="FirebaseCacheTests.cs" />
     <Compile Include="FirebasePathTests.cs" />
